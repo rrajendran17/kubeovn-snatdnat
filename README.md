@@ -1,6 +1,6 @@
 
 
-# Kubeovn SNAT DNAT Introduction
+# KubeOVN SNAT DNAT Introduction
 NAT enables external connectivity or inbound access: SNAT (Source NAT) allows VMs (or pods) inside a private overlay network / VPC to access external networks (e.g. internet) by translating their internal source IP to a public (or external-network-shared) IP. DNAT (Destination NAT) allows external hosts to reach internal VMs/pods by mapping a public IP / port to an internal private IP / port (e.g. to SSH into an internal VM). 
 
 Flexible networking for VPCs / overlay networks: Using NAT (SNAT / DNAT) with Kube-OVN means you can build isolated private subnets / VPCs and still allow controlled egress (outbound) or ingress (inbound) traffic. This is especially relevant for VM workloads managed by Harvester, where VMs may need internet access or to expose services externally.
