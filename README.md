@@ -8,10 +8,10 @@ Flexible networking for VPCs / overlay networks: Using NAT (SNAT / DNAT) with Ku
 Kube-OVN supports NAT via Kubernetes custom resources (CRDs), not just IP-tables directly. For example, resources like OvnEip, OvnSnatRule, OvnDnatRule (or their iptables-based equivalents) are used to define NAT behavior declaratively. 
 In the context of Harvester, the VM orchestration (compute, storage, VM lifecycle) is handled by Harvester; networking — including routing, NAT, VPC/subnets — is handled by Kube-OVN. This separation allows for more scalable, flexible and clean networking. 
 
-### External connectivity from VMs on custom VPCs using kubeovn as Secondary CNI
-Currently VMs will be able to reach external hosts only when attached to subnets created on default VPC (ovn-cluster) with natOutgoing as true.
+### Outbound and Inbound connectivity for VMs in Custom VPCs using KubeOVN as Secondary CNI
+Currently Outbound and Inbound connectivity for VMs works only when attached to subnets created on default VPC (ovn-cluster) with natOutgoing as true.
 
-With the introduction of using kubeovn as secondary CNI (from v1.15.x kubeovn version kubeovn/kube-ovn#5360), VMs must be able to connect with external hosts on subnets created on any custom VPCs.This task is a place holder to verify VMs external connectivity on subnets created on custom VPC using VPC NAT Gateway and kubeovn acting as secondary CNI.And fix any issues related to this.
+With the introduction of using kubeovn as secondary CNI (from v1.15.x kubeovn version kubeovn/kube-ovn#5360), Outbound and Inbound connectivity for VMs works on subnets created on any custom VPCs.
 
 - Enable kubeovn as secondary CNI
 ```
@@ -410,83 +410,6 @@ Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists fo
 Events:                      <none>
 
 ```
-
-- Create EIP and SNAT resource
-
-```
-kubectl get eip my-eip -o yaml
-apiVersion: kubeovn.io/v1
-kind: IptablesEIP
-metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"kubeovn.io/v1","kind":"IptablesEIP","metadata":{"annotations":{},"name":"my-eip"},"spec":{"externalSubnet":"vswitchexternal1","natGwDp":"gw1"}}
-  creationTimestamp: "2025-11-10T03:06:20Z"
-  finalizers:
-  - kubeovn.io/kube-ovn-controller
-  generation: 2
-  labels:
-    ovn.kubernetes.io/eip_v4_ip: 10.115.8.7
-    ovn.kubernetes.io/subnet: vswitchexternal1
-    ovn.kubernetes.io/vpc-nat-gw-name: gw1
-  name: my-eip
-  resourceVersion: "6360362"
-  uid: 16962458-142d-4200-99ca-dfa70ee8cad6
-spec:
-  externalSubnet: vswitchexternal1
-  macAddress: be:8b:0e:bf:85:16
-  natGwDp: gw1
-  qosPolicy: ""
-  v4ip: 10.115.8.7
-  v6ip: ""
-status:
-  ip: 10.115.8.7
-  nat: snat
-  qosPolicy: ""
-  ready: true
-  redo: ""
-```
-
-```
-kubectl get snat my-snat -o yaml
-apiVersion: kubeovn.io/v1
-kind: IptablesSnatRule
-metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"kubeovn.io/v1","kind":"IptablesSnatRule","metadata":{"annotations":{},"name":"my-snat"},"spec":{"eip":"my-eip","internalCIDR":"172.20.10.0/24"}}
-    ovn.kubernetes.io/vpc_eip: my-eip
-  creationTimestamp: "2025-11-10T03:06:25Z"
-  finalizers:
-  - kubeovn.io/kube-ovn-controller
-  generation: 1
-  labels:
-    ovn.kubernetes.io/eip_v4_ip: 10.115.8.7
-    ovn.kubernetes.io/vpc-nat-gw-name: gw1
-  name: my-snat
-  resourceVersion: "6360361"
-  uid: 88155c5f-6cef-4494-bb4b-51d130d15cd4
-spec:
-  eip: my-eip
-  internalCIDR: 172.20.10.0/24
-status:
-  internalCIDR: 172.20.10.0/24
-  natGwDp: gw1
-  ready: true
-  redo: ""
-  v4ip: 10.115.8.2
-  v6ip: ""
-```
-
-```
-kubectl get eip
-NAME     IP           MAC                 NAT    NATGWDP   READY
-my-eip   10.115.8.7   be:8b:0e:bf:85:16   snat   gw1       true
-hp-65:~/vpcgwtest # kubectl get snat
-NAME      EIP      V4IP         V6IP   INTERNALCIDR     NATGWDP   READY
-my-snat   my-eip   10.115.8.7          172.20.10.0/24   gw1       true
-
-```
 - Check the vpc nat gw pod for interfaces, route and iptable rules
 
 ```
@@ -626,7 +549,84 @@ nobody@hp-65:/kube-ovn$ ovs-vsctl show
     ovs_version: "3.5.3"
 
 ```
+#### SNAT for external connectivity from Overlay VMs
 
+- Create EIP and SNAT resource
+
+```
+kubectl get eip my-eip -o yaml
+apiVersion: kubeovn.io/v1
+kind: IptablesEIP
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"kubeovn.io/v1","kind":"IptablesEIP","metadata":{"annotations":{},"name":"my-eip"},"spec":{"externalSubnet":"vswitchexternal1","natGwDp":"gw1"}}
+  creationTimestamp: "2025-11-10T03:06:20Z"
+  finalizers:
+  - kubeovn.io/kube-ovn-controller
+  generation: 2
+  labels:
+    ovn.kubernetes.io/eip_v4_ip: 10.115.8.7
+    ovn.kubernetes.io/subnet: vswitchexternal1
+    ovn.kubernetes.io/vpc-nat-gw-name: gw1
+  name: my-eip
+  resourceVersion: "6360362"
+  uid: 16962458-142d-4200-99ca-dfa70ee8cad6
+spec:
+  externalSubnet: vswitchexternal1
+  macAddress: be:8b:0e:bf:85:16
+  natGwDp: gw1
+  qosPolicy: ""
+  v4ip: 10.115.8.7
+  v6ip: ""
+status:
+  ip: 10.115.8.7
+  nat: snat
+  qosPolicy: ""
+  ready: true
+  redo: ""
+```
+
+```
+kubectl get snat my-snat -o yaml
+apiVersion: kubeovn.io/v1
+kind: IptablesSnatRule
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"kubeovn.io/v1","kind":"IptablesSnatRule","metadata":{"annotations":{},"name":"my-snat"},"spec":{"eip":"my-eip","internalCIDR":"172.20.10.0/24"}}
+    ovn.kubernetes.io/vpc_eip: my-eip
+  creationTimestamp: "2025-11-10T03:06:25Z"
+  finalizers:
+  - kubeovn.io/kube-ovn-controller
+  generation: 1
+  labels:
+    ovn.kubernetes.io/eip_v4_ip: 10.115.8.7
+    ovn.kubernetes.io/vpc-nat-gw-name: gw1
+  name: my-snat
+  resourceVersion: "6360361"
+  uid: 88155c5f-6cef-4494-bb4b-51d130d15cd4
+spec:
+  eip: my-eip
+  internalCIDR: 172.20.10.0/24
+status:
+  internalCIDR: 172.20.10.0/24
+  natGwDp: gw1
+  ready: true
+  redo: ""
+  v4ip: 10.115.8.2
+  v6ip: ""
+```
+
+```
+kubectl get eip
+NAME     IP           MAC                 NAT    NATGWDP   READY
+my-eip   10.115.8.7   be:8b:0e:bf:85:16   snat   gw1       true
+hp-65:~/vpcgwtest # kubectl get snat
+NAME      EIP      V4IP         V6IP   INTERNALCIDR     NATGWDP   READY
+my-snat   my-eip   10.115.8.7          172.20.10.0/24   gw1       true
+
+```
 - check the SNAT filter iptable rule created inside the vpc nat gw pod
 
 ```
@@ -659,7 +659,7 @@ COMMIT
   - The traffic from VM reaches net1 of vpc nat gw pod and with route installed egress out of net2 and hits the iptable rule for
     SNAT and translates 172.20.10.0/24 subnet ip to 10.115.8.7 for external connectivity.
     
-### DNAT for inbound access (external to overlay VMs)
+#### DNAT for inbound access (external to overlay VMs)
 
 - Use the DNAT resource and use same EIP as SNAT
 
