@@ -1,0 +1,12 @@
+kind: VpcNatGateway
+apiVersion: kubeovn.io/v1
+metadata:
+  annotations:
+        k8s.v1.cni.cncf.io/networks: default/vswitchinternal
+  name: gw1
+spec:
+  vpc: commonvpc
+  subnet: subnetinternal
+  lanIp: 172.20.10.254
+  externalSubnets:
+    - subnetexternal

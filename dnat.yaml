@@ -1,0 +1,10 @@
+kind: IptablesDnatRule
+apiVersion: kubeovn.io/v1
+metadata:
+  name: dnat01
+spec:
+  eip: my-eip
+  externalPort: '8888'
+  internalIp: 172.20.10.8
+  internalPort: '80'
+  protocol: tcp

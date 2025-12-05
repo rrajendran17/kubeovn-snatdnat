@@ -1,0 +1,12 @@
+apiVersion: kubeovn.io/v1
+kind: Subnet
+metadata:
+  name: subnetexternal
+spec:
+  protocol: IPv4
+  provider: vswitchexternal1.kube-system.ovn
+  cidrBlock: 10.115.8.0/21
+  gateway: 10.115.15.254
+  natOutgoing: true
+  vlan: vlan2012
+  vpc: ovn-cluster

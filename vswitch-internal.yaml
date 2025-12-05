@@ -1,0 +1,19 @@
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  annotations:
+    network.harvesterhci.io/route: '{"mode":"auto","serverIPAddr":"","cidr":"","gateway":""}'
+  creationTimestamp: "2025-03-26T22:34:12Z"
+  finalizers:
+  - wrangler.cattle.io/harvester-network-nad-controller
+  - wrangler.cattle.io/harvester-network-manager-nad-controller
+  generation: 2
+  labels:
+  name: vswitchinternal
+  namespace: default
+  resourceVersion: "6329006"
+  uid: 3b8090fb-d42d-48e6-8f10-7c8642845bb1
+spec:
+  config: '{"cniVersion":"0.3.1","name":"vswitchinternal","type":"kube-ovn","server_socket":
+    "/run/openvswitch/kube-ovn-daemon.sock", "provider": "vswitchinternal.default.ovn"}'
+

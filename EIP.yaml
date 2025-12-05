@@ -1,0 +1,9 @@
+apiVersion: kubeovn.io/v1
+kind: IptablesEIP
+metadata:
+  name: my-eip
+spec:
+  natGwDp: gw1                # Name of your VpcNatGateway
+  externalSubnet: vswitchexternal1
+  v4ip: 10.115.8.7
+
