@@ -1,6 +1,6 @@
 
 
-# KubeOVN SNAT DNAT Introduction
+## KubeOVN SNAT DNAT Introduction
 NAT enables external connectivity or inbound access: SNAT (Source NAT) allows VMs (or pods) inside a private overlay network / VPC to access external networks (e.g. internet) by translating their internal source IP to a public (or external-network-shared) IP. DNAT (Destination NAT) allows external hosts to reach internal VMs/pods by mapping a public IP / port to an internal private IP / port (e.g. to SSH into an internal VM). 
 
 Flexible networking for VPCs / overlay networks: Using NAT (SNAT / DNAT) with Kube-OVN means you can build isolated private subnets / VPCs and still allow controlled egress (outbound) or ingress (inbound) traffic. This is especially relevant for VM workloads managed by Harvester, where VMs may need internet access or to expose services externally.
@@ -8,7 +8,7 @@ Flexible networking for VPCs / overlay networks: Using NAT (SNAT / DNAT) with Ku
 Kube-OVN supports NAT via Kubernetes custom resources (CRDs), not just IP-tables directly. For example, resources like OvnEip, OvnSnatRule, OvnDnatRule (or their iptables-based equivalents) are used to define NAT behavior declaratively. 
 In the context of Harvester, the VM orchestration (compute, storage, VM lifecycle) is handled by Harvester; networking — including routing, NAT, VPC/subnets — is handled by Kube-OVN. This separation allows for more scalable, flexible and clean networking. 
 
-## External connectivity from VMs on custom VPCs using kubeovn as Secondary CNI
+### External connectivity from VMs on custom VPCs using kubeovn as Secondary CNI
 Currently VMs will be able to reach external hosts only when attached to subnets created on default VPC (ovn-cluster) with natOutgoing as true.
 
 With the introduction of using kubeovn as secondary CNI (from v1.15.x kubeovn version kubeovn/kube-ovn#5360), VMs must be able to connect with external hosts on subnets created on any custom VPCs.This task is a place holder to verify VMs external connectivity on subnets created on custom VPC using VPC NAT Gateway and kubeovn acting as secondary CNI.And fix any issues related to this.
