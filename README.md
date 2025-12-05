@@ -426,7 +426,7 @@ metadata:
   - kubeovn.io/kube-ovn-controller
   generation: 2
   labels:
-    ovn.kubernetes.io/eip_v4_ip: 10.115.8.2
+    ovn.kubernetes.io/eip_v4_ip: 10.115.8.7
     ovn.kubernetes.io/subnet: vswitchexternal1
     ovn.kubernetes.io/vpc-nat-gw-name: gw1
   name: my-eip
@@ -437,10 +437,10 @@ spec:
   macAddress: be:8b:0e:bf:85:16
   natGwDp: gw1
   qosPolicy: ""
-  v4ip: 10.115.8.2
+  v4ip: 10.115.8.7
   v6ip: ""
 status:
-  ip: 10.115.8.2
+  ip: 10.115.8.7
   nat: snat
   qosPolicy: ""
   ready: true
@@ -461,7 +461,7 @@ metadata:
   - kubeovn.io/kube-ovn-controller
   generation: 1
   labels:
-    ovn.kubernetes.io/eip_v4_ip: 10.115.8.2
+    ovn.kubernetes.io/eip_v4_ip: 10.115.8.7
     ovn.kubernetes.io/vpc-nat-gw-name: gw1
   name: my-snat
   resourceVersion: "6360361"
@@ -481,10 +481,10 @@ status:
 ```
 kubectl get eip
 NAME     IP           MAC                 NAT    NATGWDP   READY
-my-eip   10.115.8.2   be:8b:0e:bf:85:16   snat   gw1       true
+my-eip   10.115.8.7   be:8b:0e:bf:85:16   snat   gw1       true
 hp-65:~/vpcgwtest # kubectl get snat
 NAME      EIP      V4IP         V6IP   INTERNALCIDR     NATGWDP   READY
-my-snat   my-eip   10.115.8.2          172.20.10.0/24   gw1       true
+my-snat   my-eip   10.115.8.7          172.20.10.0/24   gw1       true
 
 ```
 - Check the vpc nat gw pod for interfaces, route and iptable rules
@@ -514,7 +514,7 @@ vpc-nat-gw-gw1-0:/kube-ovn# ip addr show
     link/ether aa:5a:19:2a:26:6f brd ff:ff:ff:ff:ff:ff link-netnsid 0
     inet 10.115.8.3/21 brd 10.115.15.255 scope global net2
        valid_lft forever preferred_lft forever
-    inet 10.115.8.2/21 scope global secondary net2
+    inet 10.115.8.7/21 scope global secondary net2
        valid_lft forever preferred_lft forever
     inet6 fe80::a85a:19ff:fe2a:266f/64 scope link 
        valid_lft forever preferred_lft forever
@@ -647,9 +647,57 @@ vpc-nat-gw-gw1-0:/kube-ovn# iptables-legacy-save -t nat
 -A POSTROUTING -j SNAT_FILTER
 -A DNAT_FILTER -j EXCLUSIVE_DNAT
 -A DNAT_FILTER -j SHARED_DNAT
--A SHARED_SNAT -s 172.20.10.0/24 -o net2 -j SNAT --to-source 10.115.8.2 --random-fully
+-A SHARED_SNAT -s 172.20.10.0/24 -o net2 -j SNAT --to-source 10.115.8.7 --random-fully
 -A SNAT_FILTER -j EXCLUSIVE_SNAT
 -A SNAT_FILTER -j SHARED_SNAT
 COMMIT
 # Completed on Mon Nov 10 18:45:06 2025
 ```
+- Create a VM and attach to overlay network on subnetinternal and add the following default route
+  - default via 172.20.10.254 dev enp1s0 (172.20.10.254 is the ip address on net1 interface on vpc nat gw pod)
+  - Ping from VM (inside guest os) to 8.8.8.8 must be successful
+  - The traffic from VM reaches net1 of vpc nat gw pod and with route installed egress out of net2 and hits the iptable rule for
+    SNAT and translates 172.20.10.0/24 subnet ip to 10.115.8.7 for external connectivity.
+    
+### DNAT for inbound access (external to overlay VMs)
+
+- Use the DNAT resource and use same EIP as SNAT
+
+```
+kind: IptablesDnatRule
+apiVersion: kubeovn.io/v1
+metadata:
+  name: dnat01
+spec:
+  eip: my-eip
+  externalPort: '8888'
+  internalIp: 172.20.10.8
+  internalPort: '80'
+  protocol: tcp
+
+```
+
+- Check the DNAT Filter inside the vpc NAT GW pod
+
+```
+ iptables-legacy -t nat -L -n -v 2>/dev/null | grep -E "DNAT"
+11638 1217K DNAT_FILTER  all  --  *      *       0.0.0.0/0            0.0.0.0/0
+Chain DNAT_FILTER (1 references)
+11638 1217K EXCLUSIVE_DNAT  all  --  *      *       0.0.0.0/0            0.0.0.0/0
+11638 1217K SHARED_DNAT  all  --  *      *       0.0.0.0/0            0.0.0.0/0
+Chain EXCLUSIVE_DNAT (1 references)
+Chain SHARED_DNAT (1 references)
+    2   120 DNAT       tcp  --  *      *       0.0.0.0/0            10.115.8.7           tcp dpt:8888 to:172.20.10.8:80
+
+```
+
+- Create a VM attached to overlay network on subnetinternal and Install nginx on VM 
+  - sudo yum install -y nginx
+  - sudo systemctl enable --now nginx
+  - sudo ss -tlnp | grep nginx
+
+- test nginx locally on the VM
+  - curl http://127.0.0.1
+
+- Now  curl -k http://10.115.8.7:8888 from external must be successful
+  
