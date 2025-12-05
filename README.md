@@ -1,6 +1,6 @@
 
 
-# kubeovn-snatdnat Introduction
+# Kubeovn SNAT DNAT Introduction
 NAT enables external connectivity or inbound access: SNAT (Source NAT) allows VMs (or pods) inside a private overlay network / VPC to access external networks (e.g. internet) by translating their internal source IP to a public (or external-network-shared) IP. DNAT (Destination NAT) allows external hosts to reach internal VMs/pods by mapping a public IP / port to an internal private IP / port (e.g. to SSH into an internal VM). 
 
 Flexible networking for VPCs / overlay networks: Using NAT (SNAT / DNAT) with Kube-OVN means you can build isolated private subnets / VPCs and still allow controlled egress (outbound) or ingress (inbound) traffic. This is especially relevant for VM workloads managed by Harvester, where VMs may need internet access or to expose services externally.
@@ -8,7 +8,7 @@ Flexible networking for VPCs / overlay networks: Using NAT (SNAT / DNAT) with Ku
 Kube-OVN supports NAT via Kubernetes custom resources (CRDs), not just IP-tables directly. For example, resources like OvnEip, OvnSnatRule, OvnDnatRule (or their iptables-based equivalents) are used to define NAT behavior declaratively. 
 In the context of Harvester, the VM orchestration (compute, storage, VM lifecycle) is handled by Harvester; networking — including routing, NAT, VPC/subnets — is handled by Kube-OVN. This separation allows for more scalable, flexible and clean networking. 
 
-# Support for external connectivity from VMs attached to subnets from custom VPCs using kubeovn as Secondary CNI
+## External connectivity from VMs on custom VPCs using kubeovn as Secondary CNI
 Currently VMs will be able to reach external hosts only when attached to subnets created on default VPC (ovn-cluster) with natOutgoing as true.
 
 With the introduction of using kubeovn as secondary CNI (from v1.15.x kubeovn version kubeovn/kube-ovn#5360), VMs must be able to connect with external hosts on subnets created on any custom VPCs.This task is a place holder to verify VMs external connectivity on subnets created on custom VPC using VPC NAT Gateway and kubeovn acting as secondary CNI.And fix any issues related to this.
@@ -486,4 +486,170 @@ hp-65:~/vpcgwtest # kubectl get snat
 NAME      EIP      V4IP         V6IP   INTERNALCIDR     NATGWDP   READY
 my-snat   my-eip   10.115.8.2          172.20.10.0/24   gw1       true
 
+```
+- Check the vpc nat gw pod for interfaces, route and iptable rules
+
+```
+ubectl exec -it vpc-nat-gw-gw1-0 -n kube-system -- /bin/bash
+vpc-nat-gw-gw1-0:/kube-ovn# ip addr show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0@if305: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc noqueue state UP group default qlen 1000
+    link/ether 82:41:cc:0d:bc:36 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 10.52.0.189/32 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::8041:ccff:fe0d:bc36/64 scope link 
+       valid_lft forever preferred_lft forever
+306: net1@if307: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400 qdisc noqueue state UP group default 
+    link/ether 1e:2d:fc:14:ef:51 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.20.10.254/24 brd 172.20.10.255 scope global net1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::1c2d:fcff:fe14:ef51/64 scope link 
+       valid_lft forever preferred_lft forever
+308: net2@if309: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400 qdisc noqueue state UP group default 
+    link/ether aa:5a:19:2a:26:6f brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 10.115.8.3/21 brd 10.115.15.255 scope global net2
+       valid_lft forever preferred_lft forever
+    inet 10.115.8.2/21 scope global secondary net2
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a85a:19ff:fe2a:266f/64 scope link 
+       valid_lft forever preferred_lft forever
+vpc-nat-gw-gw1-0:/kube-ovn# ip route show
+default via 10.115.15.254 dev net2 
+10.96.0.0/12 via 172.20.10.1 dev net1 
+10.115.8.0/21 dev net2 proto kernel scope link src 10.115.8.3 
+169.254.1.1 dev eth0 scope link 
+172.20.10.0/24 via 172.20.10.1 dev net1 
+vpc-nat-gw-gw1-0:/kube-ovn# ping -I 10.115.8.3 8.8.8.8
+PING 8.8.8.8 (8.8.8.8) from 10.115.8.3 : 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=4 ttl=115 time=15.5 ms
+```
+
+- Create a provider network with vlan id 2012 and physical interface and a vlan network attached to the provider network.
+```
+piVersion: kubeovn.io/v1
+kind: ProviderNetwork
+metadata:
+  name: pn1
+spec:
+  defaultInterface: eno50
+
+```
+
+```
+apiVersion: kubeovn.io/v1
+kind: Vlan
+metadata:
+  name: vlan2012
+spec:
+  id: 2012
+  provider: pn1
+```
+
+-  Edit subnet subnetexternal to use vlan as vlan2012 (this will attach this subnet to the provider network underlay)
+
+```
+apiVersion: kubeovn.io/v1
+kind: Subnet
+metadata:
+  annotations:
+  creationTimestamp: "2025-11-09T17:52:22Z"
+  finalizers:
+  - kubeovn.io/kube-ovn-controller
+  generation: 3
+  name: subnetexternal
+  resourceVersion: "5978195"
+  uid: a244db8c-2ed1-4beb-9095-a9098b556330
+spec:
+  cidrBlock: 10.115.8.0/21
+  default: false
+  enableLb: true
+  excludeIps:
+  - 10.115.15.254
+  gateway: 10.115.15.254
+  gatewayNode: ""
+  gatewayType: distributed
+  natOutgoing: true
+  private: false
+  protocol: IPv4
+  provider: vswitchexternal1.kube-system.ovn
+  vpc: ovn-cluster
+  vlan: vlan2012
+```
+
+- Verify provider network bridge and external subnet attached on the ovs
+
+```
+kubectl exec -it ovs-ovn-q92zk -n kube-system -- /bin/bash
+Defaulted container "openvswitch" out of: openvswitch, hostpath-init (init)
+nobody@hp-65:/kube-ovn$ ovs-vsctl show
+54ef5649-9fe6-4944-865b-30a591c95121
+    Bridge br-int
+        fail_mode: secure
+        datapath_type: system
+        Port br-int
+            Interface br-int
+                type: internal
+        Port "9bb3a_37a8eec_h"
+            Interface "9bb3a_37a8eec_h"
+        Port "59fa82de_net2_h"
+            Interface "59fa82de_net2_h"
+        Port mirror0
+            Interface mirror0
+                type: internal
+        Port ovn0
+            Interface ovn0
+                type: internal
+        Port "59fa82de_net1_h"
+            Interface "59fa82de_net1_h"
+        Port "47e27_37a8eec_h"
+            Interface "47e27_37a8eec_h"
+        Port patch-br-int-to-localnet.subnetexternal
+            Interface patch-br-int-to-localnet.subnetexternal
+                type: patch
+                options: {peer=patch-localnet.subnetexternal-to-br-int}
+    Bridge br-pn1
+        Port rrrr-br.2012
+            trunks: [0, 2012]
+            Interface rrrr-br.2012
+        Port br-pn1
+            Interface br-pn1
+                type: internal
+        Port patch-localnet.subnetexternal-to-br-int
+            Interface patch-localnet.subnetexternal-to-br-int
+                type: patch
+                options: {peer=patch-br-int-to-localnet.subnetexternal}
+    ovs_version: "3.5.3"
+
+```
+
+- check the SNAT filter iptable rule created inside the vpc nat gw pod
+
+```
+vpc-nat-gw-gw1-0:/kube-ovn# iptables-legacy-save -t nat
+# Generated by iptables-save v1.8.11 on Mon Nov 10 18:45:06 2025
+*nat
+:PREROUTING ACCEPT [57805:4855620]
+:INPUT ACCEPT [2:168]
+:OUTPUT ACCEPT [113:8229]
+:POSTROUTING ACCEPT [113:8229]
+:DNAT_FILTER - [0:0]
+:EXCLUSIVE_DNAT - [0:0]
+:EXCLUSIVE_SNAT - [0:0]
+:SHARED_DNAT - [0:0]
+:SHARED_SNAT - [0:0]
+:SNAT_FILTER - [0:0]
+-A PREROUTING -j DNAT_FILTER
+-A POSTROUTING -j SNAT_FILTER
+-A DNAT_FILTER -j EXCLUSIVE_DNAT
+-A DNAT_FILTER -j SHARED_DNAT
+-A SHARED_SNAT -s 172.20.10.0/24 -o net2 -j SNAT --to-source 10.115.8.2 --random-fully
+-A SNAT_FILTER -j EXCLUSIVE_SNAT
+-A SNAT_FILTER -j SHARED_SNAT
+COMMIT
+# Completed on Mon Nov 10 18:45:06 2025
 ```
