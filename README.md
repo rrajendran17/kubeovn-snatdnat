@@ -127,38 +127,6 @@ spec:
   vpc: ovn-cluster
 ```
 
-- Underlay Physical network
-
-```
-ip addr show rrrr-br.2012
-220: rrrr-br.2012@rrrr-br: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
-    link/ether ea:50:43:b0:fd:44 brd ff:ff:ff:ff:ff:ff
-    inet 10.115.14.246/21 brd 10.115.15.255 scope global dynamic noprefixroute rrrr-br.2012
-       valid_lft 371sec preferred_lft 371sec
-    inet6 fe80::baee:4fdf:f127:583e/64 scope link noprefixroute 
-       valid_lft forever preferred_lft forever
-hp-65:~/vpcgwtest # bridge vlan show
-port              vlan-id  
-mgmt-br           1 PVID Egress Untagged
-                  2021
-mgmt-bo           1 PVID Egress Untagged
-                  2021
-rrrr-bo           1 PVID Egress Untagged
-                  2012
-                  2021
-rrrr-br           1 PVID Egress Untagged
-                  2012
-
-ip route show
-
-10.115.8.0/21 dev rrrr-br.2012 proto kernel scope link src 10.115.14.246 metric 401
-
-ping 8.8.8.8 -I rrrr-br.2012
-PING 8.8.8.8 (8.8.8.8) from 10.115.14.246 rrrr-br.2012: 56(84) bytes of data.
-64 bytes from 8.8.8.8: icmp_seq=1 ttl=116 time=13.8 ms
-64 bytes from 8.8.8.8: icmp_seq=2 ttl=116 time=13.8 ms
-```
-
 - Enable the vpc nat gateway config
 
 ```
@@ -511,41 +479,39 @@ kubectl exec -it ovs-ovn-q92zk -n kube-system -- /bin/bash
 Defaulted container "openvswitch" out of: openvswitch, hostpath-init (init)
 nobody@hp-65:/kube-ovn$ ovs-vsctl show
 54ef5649-9fe6-4944-865b-30a591c95121
+    Bridge br-pn1
+        Port br-pn1
+            Interface br-pn1
+                type: internal
+        Port patch-localnet.externalsubnet-to-br-int
+            Interface patch-localnet.externalsubnet-to-br-int
+                type: patch
+                options: {peer=patch-br-int-to-localnet.externalsubnet}
+        Port eno50
+            trunks: [0, 2012]
+            Interface eno50
     Bridge br-int
         fail_mode: secure
         datapath_type: system
         Port br-int
             Interface br-int
                 type: internal
-        Port "9bb3a_37a8eec_h"
-            Interface "9bb3a_37a8eec_h"
-        Port "59fa82de_net2_h"
-            Interface "59fa82de_net2_h"
+        Port "6159403e_net1_h"
+            Interface "6159403e_net1_h"
         Port mirror0
             Interface mirror0
                 type: internal
         Port ovn0
             Interface ovn0
                 type: internal
-        Port "59fa82de_net1_h"
-            Interface "59fa82de_net1_h"
-        Port "47e27_37a8eec_h"
-            Interface "47e27_37a8eec_h"
-        Port patch-br-int-to-localnet.subnetexternal
-            Interface patch-br-int-to-localnet.subnetexternal
+        Port patch-br-int-to-localnet.externalsubnet
+            Interface patch-br-int-to-localnet.externalsubnet
                 type: patch
-                options: {peer=patch-localnet.subnetexternal-to-br-int}
-    Bridge br-pn1
-        Port rrrr-br.2012
-            trunks: [0, 2012]
-            Interface rrrr-br.2012
-        Port br-pn1
-            Interface br-pn1
-                type: internal
-        Port patch-localnet.subnetexternal-to-br-int
-            Interface patch-localnet.subnetexternal-to-br-int
-                type: patch
-                options: {peer=patch-br-int-to-localnet.subnetexternal}
+                options: {peer=patch-localnet.externalsubnet-to-br-int}
+        Port "7e8b0_37a8eec_h"
+            Interface "7e8b0_37a8eec_h"
+        Port "6159403e_net2_h"
+            Interface "6159403e_net2_h"
     ovs_version: "3.5.3"
 
 ```
